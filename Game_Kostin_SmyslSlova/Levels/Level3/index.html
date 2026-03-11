@@ -1,36 +1,51 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Уровень 3</title>
-  <link rel="stylesheet" href="../../style.css">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <title>Уровень 3 — Противоположности</title>
+    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="large-header" style="background: linear-gradient(115deg,rgba(131, 58, 180, 0.3) 0%, rgba(253, 29, 29, 0.3) 50%, rgba(252, 176, 69, 0.3) 100%);
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;"></div>
-<canvas id="demo-canvas"></canvas>
+<div id="large-header" class="large-header"></div>
 
 <div class="container level-container">
-  <div class="card level3-card">
-    <div class="level-content">
-      <canvas id="path-canvas" class="path-canvas" aria-hidden="true"></canvas>
-      <div id="storm-area" class="storm-area"></div>
-      <div id="categories-area" class="categories-area"></div>
+    <div class="card level3-card">
+
+        <div class="game-header">
+            <div class="header-row">
+                <button class="btn btn-small btn-ghost" onclick="Level3.quit()">← Выход</button>
+                <span id="round-display" class="round-display">Раунд 1 / 5</span>
+                <button class="btn btn-small btn-ghost" onclick="Level3.restart()">↺ Заново</button>
+            </div>
+            <div class="header-stats">
+                <span class="stat-badge">⏱ <span id="timer-display">120</span>с</span>
+                <span class="stat-badge">★ <span id="score-display">0</span></span>
+            </div>
+        </div>
+
+        <div class="round-bar-wrap">
+            <div class="round-bar-label">
+                <span>Вопрос</span>
+                <span id="round-timer-display">–</span>
+            </div>
+            <div class="round-bar-track">
+                <div id="round-bar" class="round-bar-fill"></div>
+            </div>
+        </div>
+
+        <div id="word-display" class="word-display">—</div>
+
+        <div id="game-field" class="game-field"></div>
+
+        <div class="event-hint">
+            Двойной клик &nbsp;|&nbsp; Клавиши 1–4 &nbsp;|&nbsp; ↑↓←→ + Enter
+        </div>
+
     </div>
-    <button class="btn level2-menu-btn" onclick="history.back()">В меню ⬅️</button>
-  </div>
 </div>
+
 <script src="../../script.js"></script>
 <script src="script.js"></script>
-<script>
-    (function() {
-        AnimatedBackground.init();
-    })();
-</script>
 </body>
 </html>
