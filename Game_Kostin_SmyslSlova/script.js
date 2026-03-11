@@ -1,277 +1,3 @@
-const AnimatedBackground = {
-    canvas: null,
-    ctx: null,
-    width: 0,
-    height: 0,
-    particles: [],
-    mouse: { x: 0, y: 0 },
-    animationId: null,
-    particleCount: 80,
-    connectionDistance: 100,
-    mouseRadius: 150,
-    colors: {
-        particle: 'rgba(156, 217, 249, ',
-        line: 'rgba(156, 217, 249, ',
-        glow: 'rgba(156, 217, 249, 0.1)'
-    },
-
-    init() {
-        this.canvas = document.getElementById('demo-canvas');
-        if (!this.canvas) return;
-
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        this.ctx = this.canvas.getContext('2d');
-
-        this.particleCount = Math.min(80, Math.floor((this.width * this.height) / 15000));
-        this.createParticles();
-        this.addListeners();
-        this.animate();
-    },
-
-    createParticles() {
-        this.particles = [];
-        
-        for (let i = 0; i < this.particleCount; i++) {
-            this.particles.push({
-                x: Math.random() * this.width,
-                y: Math.random() * this.height,
-                size: Math.random() * 2 + 1,
-                speedX: (Math.random() - 0.5) * 0.8,
-                speedY: (Math.random() - 0.5) * 0.8,
-                opacity: Math.random() * 0.5 + 0.1,
-                originalSize: 0
-            });
-        }
-        
-        // Запоминаем оригинальные размеры
-        this.particles.forEach(p => {
-            p.originalSize = p.size;
-        });
-    },
-
-    addListeners() {
-        window.addEventListener('resize', () => this.handleResize());
-        window.addEventListener('mousemove', (e) => this.mouseMove(e));
-        window.addEventListener('mouseout', () => {
-            this.mouse.x = -100;
-            this.mouse.y = -100;
-        });
-    },
-
-    handleResize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        
-        this.particleCount = Math.min(80, Math.floor((this.width * this.height) / 15000));
-        this.createParticles();
-    },
-
-    mouseMove(e) {
-        this.mouse.x = e.clientX;
-        this.mouse.y = e.clientY;
-    },
-
-    updateParticles() {
-        for (let i = 0; i < this.particles.length; i++) {
-            const p = this.particles[i];
-            
-            // Двигаем частицу
-            p.x += p.speedX;
-            p.y += p.speedY;
-            
-            // Отталкиваем от мыши
-            const dx = this.mouse.x - p.x;
-            const dy = this.mouse.y - p.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < this.mouseRadius) {
-                const force = (this.mouseRadius - distance) / this.mouseRadius;
-                const angle = Math.atan2(dy, dx);
-                const repelForce = force * 0.8;
-                
-                p.x -= Math.cos(angle) * repelForce;
-                p.y -= Math.sin(angle) * repelForce;
-                
-                // Увеличиваем размер при приближении к мыши
-                p.size = p.originalSize * (1 + force * 0.5);
-                p.opacity = Math.min(0.8, p.opacity + force * 0.3);
-            } else {
-                // Плавно возвращаем к исходному размеру и прозрачности
-                p.size += (p.originalSize - p.size) * 0.1;
-                p.opacity += (p.originalSize / 3 - p.opacity) * 0.1;
-            }
-            
-            // Отскок от границ
-            if (p.x < 0) {
-                p.x = 0;
-                p.speedX *= -0.8;
-            }
-            if (p.x > this.width) {
-                p.x = this.width;
-                p.speedX *= -0.8;
-            }
-            if (p.y < 0) {
-                p.y = 0;
-                p.speedY *= -0.8;
-            }
-            if (p.y > this.height) {
-                p.y = this.height;
-                p.speedY *= -0.8;
-            }
-            
-            // Случайные изменения скорости
-            if (Math.random() > 0.98) {
-                p.speedX += (Math.random() - 0.5) * 0.1;
-                p.speedY += (Math.random() - 0.5) * 0.1;
-                
-                // Ограничиваем скорость
-                const speed = Math.sqrt(p.speedX * p.speedX + p.speedY * p.speedY);
-                if (speed > 1.5) {
-                    p.speedX = (p.speedX / speed) * 1.5;
-                    p.speedY = (p.speedY / speed) * 1.5;
-                }
-            }
-        }
-    },
-
-    drawParticles() {
-        for (let i = 0; i < this.particles.length; i++) {
-            const p = this.particles[i];
-            
-            // Рисуем свечение
-            const gradient = this.ctx.createRadialGradient(
-                p.x, p.y, 0,
-                p.x, p.y, p.size * 3
-            );
-            gradient.addColorStop(0, this.colors.particle + p.opacity + ')');
-            gradient.addColorStop(1, this.colors.particle + '0)');
-            
-            this.ctx.beginPath();
-            this.ctx.fillStyle = gradient;
-            this.ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            // Рисуем ядро частицы
-            this.ctx.beginPath();
-            this.ctx.fillStyle = this.colors.particle + Math.min(1, p.opacity + 0.3) + ')';
-            this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            this.ctx.fill();
-        }
-    },
-
-    drawConnections() {
-        for (let i = 0; i < this.particles.length; i++) {
-            const p1 = this.particles[i];
-            
-            for (let j = i + 1; j < this.particles.length; j++) {
-                const p2 = this.particles[j];
-                const dx = p1.x - p2.x;
-                const dy = p1.y - p2.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                if (distance < this.connectionDistance) {
-                    // Вычисляем прозрачность в зависимости от расстояния
-                    const opacity = 1 - (distance / this.connectionDistance);
-                    const lineWidth = 0.5 + opacity * 1.5;
-                    
-                    // Рисуем линию с градиентом
-                    const gradient = this.ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
-                    gradient.addColorStop(0, this.colors.line + (p1.opacity * opacity * 0.4) + ')');
-                    gradient.addColorStop(1, this.colors.line + (p2.opacity * opacity * 0.4) + ')');
-                    
-                    this.ctx.beginPath();
-                    this.ctx.strokeStyle = gradient;
-                    this.ctx.lineWidth = lineWidth;
-                    this.ctx.moveTo(p1.x, p1.y);
-                    this.ctx.lineTo(p2.x, p2.y);
-                    this.ctx.stroke();
-                    
-                    // Рисуем точки соединения
-                    this.ctx.beginPath();
-                    this.ctx.fillStyle = this.colors.line + (opacity * 0.6) + ')';
-                    this.ctx.arc((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, 1, 0, Math.PI * 2);
-                    this.ctx.fill();
-                }
-            }
-        }
-    },
-
-    drawMouseEffect() {
-        if (this.mouse.x > 0 && this.mouse.y > 0) {
-            // Рисуем свечение вокруг мыши
-            const gradient = this.ctx.createRadialGradient(
-                this.mouse.x, this.mouse.y, 0,
-                this.mouse.x, this.mouse.y, this.mouseRadius
-            );
-            gradient.addColorStop(0, 'rgba(156, 217, 249, 0.15)');
-            gradient.addColorStop(0.5, 'rgba(156, 217, 249, 0.05)');
-            gradient.addColorStop(1, 'rgba(156, 217, 249, 0)');
-            
-            this.ctx.beginPath();
-            this.ctx.fillStyle = gradient;
-            this.ctx.arc(this.mouse.x, this.mouse.y, this.mouseRadius, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            // Рисуем центральную точку
-            this.ctx.beginPath();
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            this.ctx.arc(this.mouse.x, this.mouse.y, 2, 0, Math.PI * 2);
-            this.ctx.fill();
-        }
-    },
-
-    animate() {
-        // Очищаем с прозрачностью для эффекта шлейфа
-        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.05)';
-        this.ctx.fillRect(0, 0, this.width, this.height);
-        
-        this.updateParticles();
-        this.drawConnections();
-        this.drawParticles();
-        this.drawMouseEffect();
-        
-        this.animationId = requestAnimationFrame(() => this.animate());
-    },
-
-    destroy() {
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-    }
-};
-
-const GlobalDB = {
-    pairs: [
-        { word: "Король", categories: ["Королева", "Власть", "Карта"] },
-        { word: "Стол", categories: ["Стул", "Мебель"] },
-        { word: "День", categories: ["Ночь", "Время", "Солнце", "Природа"] },
-        { word: "Игла", categories: ["Нитка", "Шитьё"] },
-        { word: "Ключ", categories: ["Замок", "Мебель"] },
-        { word: "Лук", categories: ["Стрелы", "Растение", "Оружие", "Спорт"] },
-        { word: "Чашка", categories: ["Блюдце", "Посуда", "Еда"] },
-        { word: "Перо", categories: ["Чернила", "Письмо"] },
-        { word: "Молоток", categories: ["Гвоздь",  "Мебель"] },
-        { word: "Книга", categories: ["Знание", "Чтение", "Письмо", "Искусство"] },
-        { word: "Солнце", categories: ["Луна", "Шар", "Звезда"] },
-        { word: "Хлеб", categories: ["Масло", "Еда", "Здоровье", "Питание"] }
-    ],
-    // Дополнительные отвлекающие категории
-    distractorCategories: [
-        "Спорт", "Музыка", "Транспорт", "Цвет",
-        "Эмоции", "Наука", "Здоровье",
-        "Технология", "Природа", "Одежда", "Животные",
-         "Овощи","Ягоды", "Семена", "Корни", "Листья", "Цветы"
-    ]
-};
-
 const TimerManager = {
     timeLeft: 0,
     totalTime: 0,
@@ -416,47 +142,8 @@ const ScreenBlocker = {
     }
 };
 
-const LevelModeManager = {
-    STORAGE_PREFIX: 'level-mode-',
-
-    buildKey(levelId) {
-        return `${this.STORAGE_PREFIX}${levelId}`;
-    },
-
-    save(levelId, mode) {
-        if (!Number.isFinite(levelId) || !mode) return;
-        try {
-            sessionStorage.setItem(this.buildKey(levelId), mode);
-        } catch (e) {
-            console.warn('LevelModeManager: unable to save mode', e);
-        }
-    },
-
-    get(levelId, fallback = 'normal') {
-        if (!Number.isFinite(levelId)) return fallback;
-        try {
-            return sessionStorage.getItem(this.buildKey(levelId)) || fallback;
-        } catch (e) {
-            console.warn('LevelModeManager: unable to read mode', e);
-            return fallback;
-        }
-    },
-
-    clear(levelId) {
-        if (!Number.isFinite(levelId)) return;
-        try {
-            sessionStorage.removeItem(this.buildKey(levelId));
-        } catch (e) {
-            console.warn('LevelModeManager: unable to clear mode', e);
-        }
-    }
-};
-
 const LeaderboardManager = {
     STORAGE_KEY: 'gameLeaderboard',
-
-    init() {
-    },
 
     getAllPlayers() {
         try {
@@ -464,7 +151,6 @@ const LeaderboardManager = {
             if (!data) return [];
 
             const players = JSON.parse(data);
-            // Сортировка по очкам (убывание)
             return players.sort((a, b) => b.score - a.score);
         } catch (e) {
             console.error('Error loading leaderboard:', e);
@@ -691,8 +377,7 @@ const UserManager = {
         window.location.reload();
     },
 
-
-        addScore(levelId, points, timeBonus = 0) {
+    addScore(levelId, points, timeBonus = 0) {
         if (!this.user) return false;
 
         if (!this.user.levelScores) this.user.levelScores = {};
@@ -701,14 +386,12 @@ const UserManager = {
 
         const totalPoints = Math.max(0, (points || 0) + (timeBonus || 0));
         const previousBest = Number(this.user.levelScores[levelId]) || 0;
-        
-        // Если это первое прохождение или результат лучше предыдущего
+
         if (totalPoints > previousBest) {
-            // Добавляем только разницу к общему счёту
             const difference = totalPoints - previousBest;
             this.user.score += difference;
             this.user.levelScores[levelId] = totalPoints;
-            
+
             console.log(`Улучшение! +${difference} очков (было ${previousBest}, стало ${totalPoints})`);
         } else {
             console.log(`Результат ${totalPoints} не лучше рекорда ${previousBest}, очки не начислены`);
@@ -807,9 +490,8 @@ const SoundManager = {
     }
 };
 
-// Инициализация всего что надо, а то не будет работать ;(
+
 NotificationManager.init();
 ScreenBlocker.init();
 UserManager.init();
 SoundManager.init();
-LeaderboardManager.init();
