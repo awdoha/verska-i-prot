@@ -1,835 +1,363 @@
+const PROFESSIONS = [
+    { id: 'doctor',    name: 'Врач',      emoji: '👨‍⚕️' },
+    { id: 'builder',   name: 'Строитель', emoji: '👷' },
+    { id: 'teacher',   name: 'Учитель',   emoji: '👩‍🏫' },
+    { id: 'cook',      name: 'Повар',     emoji: '👨‍🍳' },
+    { id: 'artist',    name: 'Художник',  emoji: '👨‍🎨' },
+    { id: 'driver',    name: 'Водитель',  emoji: '🚗' },
+    { id: 'fireman',   name: 'Пожарный',  emoji: '🧑‍🚒' },
+    { id: 'farmer',    name: 'Фермер',    emoji: '🧑‍🌾' },
+    { id: 'scientist', name: 'Учёный',    emoji: '🧑‍🔬' },
+    { id: 'musician',  name: 'Музыкант',  emoji: '🎵' },
+];
+
+const TOOLS = [
+    { id: 'stethoscope', name: 'Стетоскоп',   emoji: '🩺',  professions: ['doctor']             },
+    { id: 'trowel',      name: 'Мастерок',     emoji: '🧱',  professions: ['builder']            },
+    { id: 'chalk',       name: 'Мел',          emoji: '✏️',  professions: ['teacher', 'artist']  },
+    { id: 'knife',       name: 'Нож повара',   emoji: '🔪',  professions: ['cook']               },
+    { id: 'brush',       name: 'Кисть',        emoji: '🖌️', professions: ['artist', 'builder']  },
+    { id: 'keys',        name: 'Ключи',        emoji: '🔑',  professions: ['driver']             },
+    { id: 'extinguish',  name: 'Огнетушитель', emoji: '🧯',  professions: ['fireman']            },
+    { id: 'rake',        name: 'Грабли',       emoji: '🌾',  professions: ['farmer']             },
+    { id: 'microscope',  name: 'Микроскоп',    emoji: '🔬',  professions: ['scientist', 'doctor']},
+    { id: 'guitar',      name: 'Гитара',       emoji: '🎸',  professions: ['musician']           },
+    { id: 'ruler',       name: 'Линейка',      emoji: '📏',  professions: ['teacher', 'builder'] },
+    { id: 'bandage',     name: 'Бинт',         emoji: '🩹',  professions: ['doctor', 'fireman']  },
+];
+
+const ROUND_TIMES_L2 = [20, 17, 14, 11, 8];
+
+const ZONE_W = 114;
+const ZONE_H = 120;
+
 const Level2 = {
-    spawnTimer: null,
-    caught: 0,
-    missed: 0,
-    maxMissed: 5,
-    targetScore: 10,
-    startTime: null,
-    levelTime: 120,
-    currentSpeed: 1.2,
-    spawnInterval: 2000,
-    shuffleTimer: null,
-    skipReward: 40,
-    skipScore: 0,
-    skipHits: 0,
-    mode: 'normal',
-    isEndless: false,
-    basePoints: 200,
-    scoreGoalLabel: '10',
-    endlessReason: null,
-    visibleCategoryPreset: null,
-    modeConfigs: {
-        normal: {
-            levelTime: 120,
-            maxMissed: 5,
-            spawnInterval: 5000,
-            skipReward: 40,
-            basePoints: 200,
-            visibleCategories: 3,
-            endless: false,
-            targetFallSeconds: 15
-        },
-        hard: {
-            levelTime: 90,
-            maxMissed: 4,
-            spawnInterval: 3500,
-            skipReward: 30,
-            basePoints: 260,
-            visibleCategories: 4,
-            endless: false,
-            targetFallSeconds: 12
-        },
-        endless: {
-            levelTime: null,
-            maxMissed: 5,
-            spawnInterval: 3000,
-            skipReward: 50,
-            basePoints: 220,
-            visibleCategories: 4,
-            endless: true,
-            targetFallSeconds: 12
-        }
-    },
-    defaultVisibleCategories: 3,
-    visibleCategoryStorageKey: 'level2VisibleCategories',
-    categories: [],
-    categoryPool: [
-        { id: 'animals', name: 'Животные', description: 'Живые существа', count: 0, target: 4 },
-        { id: 'food', name: 'Еда', description: 'Продукты питания', count: 0, target: 4 },
-        { id: 'objects', name: 'Мебель', description: 'Вещи и инструменты', count: 0, target: 4 },
-        { id: 'transport', name: 'Транспорт', description: 'Средства передвижения', count: 0, target: 4 },
-        { id: 'nature', name: 'Природная зона', description: 'Природные объекты', count: 0, target: 4 },
-        { id: 'technology', name: 'Технологии', description: 'Гаджеты и техника', count: 0, target: 4 }
-    ],
-    applyModeSettings() {
-        const stored = typeof LevelModeManager !== 'undefined'
-            ? LevelModeManager.get(2, 'normal')
-            : 'normal';
-        this.mode = this.modeConfigs[stored] ? stored : 'normal';
-        const cfg = this.modeConfigs[this.mode];
-        this.levelTime = cfg.levelTime ?? 0;
-        this.maxMissed = cfg.maxMissed;
-        this.spawnInterval = cfg.spawnInterval;
-        this.skipReward = cfg.skipReward;
-        this.basePoints = cfg.basePoints;
-        this.isEndless = !!cfg.endless;
-        this.visibleCategoryPreset = cfg.visibleCategories ?? null;
-        this.targetFallSeconds = cfg.targetFallSeconds ?? this.targetFallSeconds ?? 6;
-    },
+    round: 0,
+    totalRounds: 5,
+    score: 0,
+    correctCount: 0,
+    totalTimeLeft: 90,
+    shuffledTools: [],
+    roundProfessions: [],
+    currentTool: null,
+    finished: false,
 
-    words: [
-        // Животные
-        { text: 'КОТ', category: 'animals' },
-        { text: 'СЛОН', category: 'animals' },
-        { text: 'ЛЕВ', category: 'animals' },
-        { text: 'ПИНГВИН', category: 'animals' },
-        { text: 'ЗЕБРА', category: 'animals' },
-        // Еда
-        { text: 'ПИЦЦА', category: 'food' },
-        { text: 'ХЛЕБ', category: 'food' },
-        { text: 'СУП', category: 'food' },
-        { text: 'СЫР', category: 'food' },
-        { text: 'САЛАТ', category: 'food' },
-        // Предметы
-        { text: 'СТОЛ', category: 'objects' },
-        { text: 'СТУЛ', category: 'objects' },
-        { text: 'КРОВАТЬ', category: 'objects' },
-        { text: 'ДИВАН', category: 'objects' },
-        // Транспорт
-        { text: 'МАШИНА', category: 'transport' },
-        { text: 'ПОЕЗД', category: 'transport' },
-        { text: 'САМОЛЁТ', category: 'transport' },
-        { text: 'КОРАБЛЬ', category: 'transport' },
-        { text: 'ВЕЛОСИПЕД', category: 'transport' },
-        // Природа
-        { text: 'ЛЕС', category: 'nature' },
-        { text: 'РЕКА', category: 'nature' },
-        { text: 'ГОРЫ', category: 'nature' },
-        { text: 'МОРЕ', category: 'nature' },
-        { text: 'ПУСТЫНЯ', category: 'nature' },
-        // Технологии
-        { text: 'ЭКЗОСКЕЛЕТ', category: 'technology' },
-        { text: 'СМАРТФОН', category: 'technology' },
-        { text: 'РОБОТ', category: 'technology' },
-        { text: 'ДРОН', category: 'technology' },
-        { text: 'ЛАЗЕР', category: 'technology' }
-    ],
-
-    clampVisibleCategoryCount(value) {
-        const safeValue = Number.isFinite(value) ? value : this.defaultVisibleCategories;
-        return Math.min(this.categoryPool.length, Math.max(1, safeValue));
-    },
-
-    loadVisibleCategoryCount() {
-        try {
-            const stored = localStorage.getItem(this.visibleCategoryStorageKey);
-            if (!stored) return this.defaultVisibleCategories;
-            const parsed = Number(stored);
-            return this.clampVisibleCategoryCount(Number.isFinite(parsed) ? parsed : this.defaultVisibleCategories);
-        } catch (e) {
-            console.warn('Level2: unable to read visible category count', e);
-            return this.defaultVisibleCategories;
-        }
-    },
-
-    pickActiveCategories(count) {
-        const pool = this.categoryPool.map(cat => ({ ...cat, count: 0 }));
-        for (let i = pool.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [pool[i], pool[j]] = [pool[j], pool[i]];
-        }
-        return pool.slice(0, count);
-    },
-
-    setupActiveCategories() {
-        const requested = this.visibleCategoryPreset ?? this.loadVisibleCategoryCount();
-        const clamped = this.clampVisibleCategoryCount(requested);
-        this.categories = this.pickActiveCategories(clamped);
-    },
+    _roundTimerId: null,
+    _roundTimeLeft: 0,
+    _roundTimeTotal: 0,
+    _toolSelected: false,
+    _keyHandler: null,
+    _dragOver: null,
 
     init() {
-        this.applyModeSettings();
-        this.startTime = Date.now();
-        this.caught = 0;
-        this.missed = 0;
-        this.skipScore = 0;
-        this.skipHits = 0;
-        this.endlessReason = null;
-        this.setupActiveCategories();
-        this.targetScore = this.categories.reduce((sum, cat) => sum + cat.target, 0);
-        this.scoreGoalLabel = this.isEndless ? '∞' : this.targetScore;
+        this.round = 0;
+        this.score = 0;
+        this.correctCount = 0;
+        this.totalTimeLeft = 90;
+        this.finished = false;
+        this._toolSelected = false;
 
-        this.words.sort(() => 0.5 - Math.random());
+        this.shuffledTools = this._shuffle([...TOOLS]).slice(0, this.totalRounds);
 
-        this.createUI();
-        this.renderCategories();
-        this.updateSkipDisplay();
+        const profIds = [...new Set(this.shuffledTools.flatMap(t => t.professions))];
+        this.roundProfessions = profIds
+            .map(id => PROFESSIONS.find(p => p.id === id))
+            .filter(Boolean);
 
-        const area = document.getElementById('storm-area');
+        this._keyHandler = e => this._onKey(e);
+        document.addEventListener('keydown', this._keyHandler);
 
-        this.startSpawning();
-
-        if (this.levelTime && this.levelTime > 0) {
-            TimerManager.start(
-                this.levelTime,
-                (timeLeft, total) => this.updateTimer(timeLeft, total),
-                () => this.finish(false, true)
-            );
-        } else {
-            const display = document.getElementById('timer-display');
-            if (display) {
-                display.innerText = '∞';
-            }
-        }
-    },
-
-    createUI() {
-        const card = document.querySelector('.level2-card') || document.querySelector('.card');
-        let header = card ? card.querySelector('h2') : null;
-        if (!header && card) {
-            header = document.createElement('h2');
-            card.insertBefore(header, card.firstChild);
-        }
-        if (!header) return;
-        const timerLabel = (this.levelTime && this.levelTime > 0)
-            ? TimerManager.formatTime(this.levelTime)
-            : '∞';
-        header.innerHTML = `
-            <div class="level-header">
-                <div class="level-stats-panel">
-                    <div class="stat-item stat-item--time">
-                        <div class="stat-label">⏱ Время</div>
-                        <div class="stat-value" id="timer-display">${timerLabel}</div>
-                    </div>
-                    <div class="stat-item stat-item--good">
-                        <div class="stat-label">🎯 Поймано</div>
-                        <div class="stat-value">
-                            <span id="score-count">0</span>/<span>${this.scoreGoalLabel}</span>
-                        </div>
-                    </div>
-                    <div class="stat-item stat-item--bad">
-                        <div class="stat-label">⚠ Пропущено</div>
-                        <div class="stat-value">
-                            <span id="missed-count">0</span>/<span>${this.maxMissed}</span>
-                        </div>
-                    </div>
-                    <div class="stat-item stat-item--bonus">
-                        <div class="stat-label">✨ Лишние</div>
-                        <div class="stat-value">
-                            <span id="skip-count">0</span>
-                            <small>(+<span id="skip-points">0</span>)</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
-
-    renderCategories() {
-        const catArea = document.getElementById('categories-area');
-        if (!catArea) return;
-        catArea.innerHTML = '';
-
-        this.categories.forEach(cat => {
-            const zone = document.createElement('div');
-            zone.className = 'category-zone';
-            zone.dataset.category = cat.id;
-            zone.innerHTML = `
-                <div class="category-label">${cat.name}</div>
-                <div class="category-counter">
-                    <span class="cat-count">${cat.count}</span>
-                </div>
-            `;
-            catArea.appendChild(zone);
-        });
-    },
-
-    shuffleCategories() {
-        for (let i = this.categories.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [this.categories[i], this.categories[j]] = [this.categories[j], this.categories[i]];
-        }
-    },
-
-    scheduleCategoryShuffle() {
-        if (this.shuffleTimer) {
-            clearTimeout(this.shuffleTimer);
-        }
-        this.shuffleTimer = setTimeout(() => {
-            this.shuffleCategories();
-            this.renderCategories();
-            this.shuffleTimer = null;
-        }, 400);
-    },
-
-    updateSkipDisplay() {
-        const count = document.getElementById('skip-count');
-        const points = document.getElementById('skip-points');
-        if (count) count.innerText = this.skipHits;
-        if (points) points.innerText = this.skipScore;
-    },
-
-    clearAreas() {
-        const area = document.getElementById('storm-area');
-        if (area) {
-            Array.from(area.querySelectorAll('.falling-word')).forEach(word => {
-                this.stopFall(word);
-                word.remove();
-            });
-        }
-        const catArea = document.getElementById('categories-area');
-        if (catArea) catArea.innerHTML = '';
-    },
-
-    hasActiveCategory(categoryId) {
-        return this.categories.some(cat => cat.id === categoryId);
-    },
-
-    canSkipWord(el) {
-        if (!el) return false;
-        const category = el.dataset.category;
-        return !this.hasActiveCategory(category);
-    },
-
-    handleSkipWord(el) {
-        if (!el || el.classList.contains('skip-resolved')) return;
-        this.stopFall(el);
-        el.classList.add('skip-resolved');
-        delete el._dragContext;
-
-        this.skipHits++;
-        this.skipScore += this.skipReward;
-        this.updateSkipDisplay();
-        SoundManager.success();
-
-        el.style.transition = 'all 0.25s ease-out';
-        el.style.transform = 'scale(1.2)';
-        el.style.opacity = '0';
-        setTimeout(() => el.remove(), 200);
-    },
-
-    handleInvalidSkip(el) {
-        if (!el || el.classList.contains('skip-resolved')) return;
-        this.stopFall(el);
-        el.classList.add('skip-resolved');
-        delete el._dragContext;
-
-        UserManager.removePenalty(this.skipReward * 2);
-        SoundManager.error();
-
-        this.missed++;
-        const missedDisplay = document.getElementById('missed-count');
-        if (missedDisplay) missedDisplay.innerText = this.missed;
-
-        const area = document.getElementById('storm-area');
-        if (area) {
-            area.style.animation = 'shake 0.4s';
-            setTimeout(() => area.style.animation = '', 400);
-        }
-
-        el.style.transition = 'all 0.25s ease-out';
-        el.style.transform = 'scale(0.8)';
-        el.style.opacity = '0';
-        setTimeout(() => el.remove(), 200);
-
-        if (this.missed >= this.maxMissed) {
-            setTimeout(() => this.finish(false), 500);
-        }
-    },
-
-    updateTimer(timeLeft, total) {
-        const display = document.getElementById('timer-display');
-        if (!display) return;
-
-        display.innerText = TimerManager.formatTime(timeLeft);
-
-        if (timeLeft <= 20) {
-            display.style.color = '#d63031';
-            display.style.animation = 'pulse 0.5s infinite';
-            if (timeLeft <= 5) {
-                SoundManager.warning();
-            }
-        } else if (timeLeft <= 40) {
-            display.style.color = '#fdcb6e';
-        } else {
-            display.style.color = '#00b894';
-            display.style.animation = 'none';
-        }
-    },
-
-    startSpawning() {
-        let wordIndex = 0;
-
-        const spawnNext = () => {
-            if (!this.isEndless && this.caught >= this.targetScore) {
-                return;
-            }
-            if (!this.isEndless && wordIndex >= this.words.length) {
-                return;
-            }
-
-            this.spawnWord(this.words[wordIndex]);
-            wordIndex++;
-
-            if (this.isEndless && wordIndex >= this.words.length) {
-                wordIndex = 0;
-                this.words.sort(() => 0.5 - Math.random());
-            }
-        };
-
-        spawnNext();
-
-        this.spawnTimer = setInterval(() => {
-            spawnNext();
-
-            if (this.caught > 0 && this.caught % 3 === 0) {
-                this.currentSpeed = Math.min(3, this.currentSpeed + 0.2);
-                this.spawnInterval = Math.max(1200, this.spawnInterval - 200);
-
-                clearInterval(this.spawnTimer);
-                this.startSpawning();
-            }
-        }, this.spawnInterval);
-    },
-
-    spawnWord(wordData) {
-        const area = document.getElementById('storm-area');
-        if (!area) return;
-
-        const el = document.createElement('div');
-        el.className = 'falling-word';
-        el.innerText = wordData.text;
-        el.dataset.category = wordData.category;
-        el.style.width = '5wh';
-        el.style.height = '5vh';
-        el.style.top = '-20px';
-
-        area.appendChild(el);
-
-        const maxLeft = Math.max(0, area.clientWidth - el.offsetWidth);
-        el.style.left = Math.random() * maxLeft + 'px';
-
-        this.makeDraggable(el, area);
-
-        el.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            if (this.canSkipWord(el)) {
-                this.handleSkipWord(el);
-            } else {
-                this.handleInvalidSkip(el);
-            }
+        TimerManager.start(this.totalTimeLeft, (t) => {
+            this.totalTimeLeft = t;
+            this._el('timer-display').textContent = t;
+            if (t <= 15) this._el('timer-display').style.color = 'var(--error)';
+        }, () => {
+            if (!this.finished) this.finish(false);
         });
 
-        this.startFall(el, area);
+        this._renderField();
+        this._nextRound();
     },
 
-    getVerticalSpeed(area) {
-        const rectHeight = area?.getBoundingClientRect ? area.getBoundingClientRect().height : null;
-        const areaHeight = Math.max(11, rectHeight || area?.clientHeight);
-        const randomFactor = 0.9 + Math.random() * 0.3; // 0.9–1.2
-        const effectiveTime = Math.max(
-            0.4,
-            (this.targetFallSeconds / Math.max(0.6, this.currentSpeed)) * randomFactor
+    _renderField() {
+        const field = this._el('game-field');
+        field.innerHTML = '';
+
+        const positions = this._generatePositions(
+            this.roundProfessions.length,
+            field.offsetWidth  || 720,
+            field.offsetHeight || 380
         );
-        const verticalSpeed = areaHeight / effectiveTime; // px/sec
-        return { areaHeight, verticalSpeed };
-    },
 
-    getTrajectoryType() {
-        const types = ['straight', 'sine', 'diagonal'];
-        return types[Math.floor(Math.random() * types.length)];
-    },
+        this.roundProfessions.forEach((prof, i) => {
+            const zone = document.createElement('div');
+            zone.className = 'profession-zone';
+            zone.dataset.id = prof.id;
+            zone.style.left = positions[i].x + 'px';
+            zone.style.top  = positions[i].y + 'px';
+            zone.style.animationDelay = (i * 0.07) + 's';
+            zone.innerHTML = `
+                <span class="key-num">${i + 1}</span>
+                <div class="profession-emoji">${prof.emoji}</div>
+                <div class="profession-name">${prof.name}</div>
+            `;
 
-    createTrajectory(area, el, forcedType = null, verticalMetrics = null) {
-        const type = forcedType || this.getTrajectoryType();
-        const widthLimit = Math.max(0, area.clientWidth - el.offsetWidth);
-        const clampX = (val) => Math.max(0, Math.min(val, widthLimit));
-        const startX = clampX(parseFloat(el.style.left) || 0);
-        const startY = parseFloat(el.style.top) || -40;
-        const metrics = verticalMetrics || this.getVerticalSpeed(area);
-        const { areaHeight, verticalSpeed } = metrics;
-
-        const trajectory = {
-            type,
-            baseX: startX,
-            currentX: startX,
-            currentY: startY,
-            verticalSpeed,
-            areaHeight,
-            elapsed: 0,
-            lastTimestamp: null,
-            phase: Math.random() * Math.PI * 2
-        };
-
-        if (type === 'sine') {
-            const amplitudeBase = 90 + Math.random() * 90;
-            const amplitudeLimit = Math.max(10, widthLimit / 2);
-            trajectory.amplitude = Math.min(amplitudeBase, amplitudeLimit);
-            trajectory.frequency = 1 + Math.random() * 1.5;
-            const minBase = trajectory.amplitude;
-            const maxBase = Math.max(minBase, widthLimit - trajectory.amplitude);
-            trajectory.baseX = clampX(Math.max(minBase, Math.min(startX, maxBase)));
-            trajectory.currentX = trajectory.baseX;
-        } else if (type === 'diagonal') {
-            trajectory.horizontalSpeed = 60 + Math.random() * 60;
-            trajectory.direction = Math.random() > 0.5 ? 1 : -1;
-        }
-
-        return trajectory;
-    },
-
-    startFall(el, area, forcedType = null) {
-        if (!area) return;
-        this.stopFall(el);
-
-        const areaWidth = Math.max(0, area.clientWidth - el.offsetWidth);
-        const clampX = (val) => Math.max(0, Math.min(val, areaWidth));
-        const metrics = this.getVerticalSpeed(area);
-        const trajectory = this.createTrajectory(area, el, forcedType, metrics);
-        el._trajectory = trajectory;
-        const areaHeight = trajectory.areaHeight;
-
-        const animate = (timestamp) => {
-            if (el.classList.contains('dragging') || el.classList.contains('caught')) {
-                this.stopFall(el);
-                return;
-            }
-
-            if (trajectory.lastTimestamp === null) {
-                trajectory.lastTimestamp = timestamp;
-            }
-
-            const delta = (timestamp - trajectory.lastTimestamp) / 1000;
-            trajectory.lastTimestamp = timestamp;
-            trajectory.elapsed += delta;
-            trajectory.currentY += trajectory.verticalSpeed * delta;
-
-            if (trajectory.type === 'sine') {
-                const nextX = trajectory.baseX +
-                    Math.sin(trajectory.elapsed * trajectory.frequency + trajectory.phase) * trajectory.amplitude;
-                trajectory.currentX = clampX(nextX);
-            } else if (trajectory.type === 'diagonal') {
-                let nextX = trajectory.currentX + trajectory.horizontalSpeed * delta * trajectory.direction;
-                if (nextX <= 0 || nextX >= areaWidth) {
-                    trajectory.direction *= -1;
-                    nextX = clampX(nextX);
-                }
-                trajectory.currentX = nextX;
-            } else {
-                trajectory.currentX = clampX(trajectory.baseX);
-            }
-
-            el.style.left = trajectory.currentX + 'px';
-            el.style.top = trajectory.currentY + 'px';
-
-            if (trajectory.currentY > areaHeight) {
-                this.stopFall(el);
-                if (el.parentNode && !el.classList.contains('caught')) {
-                    this.wordMissed();
-                    el.remove();
-                }
-                return;
-            }
-
-            const frameId = requestAnimationFrame(animate);
-            el.dataset.fallFrame = frameId;
-        };
-
-        const frameId = requestAnimationFrame(animate);
-        el.dataset.fallFrame = frameId;
-    },
-
-    resumeFall(el, area) {
-        if (!area) return;
-        const type = el._trajectory ? el._trajectory.type : null;
-        this.startFall(el, area, type);
-    },
-
-    stopFall(el) {
-        if (!el || !el.dataset) return;
-        const frameId = Number(el.dataset.fallFrame);
-        if (frameId) {
-            cancelAnimationFrame(frameId);
-        }
-        delete el.dataset.fallFrame;
-    },
-
-    makeDraggable(el, container) {
-        let isDown = false;
-
-        const promoteToGlobalLayer = (e) => {
-            const rect = el.getBoundingClientRect();
-            el._dragContext = {
-                offsetX: e.clientX - rect.left,
-                offsetY: e.clientY - rect.top,
-                parent: el.parentElement,
-                nextSibling: el.nextSibling,
-                width: rect.width
-            };
-
-            document.body.appendChild(el);
-            el.style.position = 'fixed';
-            el.style.left = rect.left + 'px';
-            el.style.top = rect.top + 'px';
-            el.style.width = rect.width + 'px';
-        };
-
-        const restoreToStormArea = () => {
-            if (!el._dragContext) return;
-            const host = el._dragContext.parent || container;
-            if (!host) return;
-
-            const hostRect = host.getBoundingClientRect();
-            const currentLeft = parseFloat(el.style.left) || 0;
-            const currentTop = parseFloat(el.style.top) || 0;
-            const relativeLeft = currentLeft - hostRect.left;
-            const relativeTop = currentTop - hostRect.top;
-
-            if (el._dragContext.parent) {
-                const { parent, nextSibling } = el._dragContext;
-                if (nextSibling && nextSibling.parentNode === parent) {
-                    parent.insertBefore(el, nextSibling);
-                } else {
-                    parent.appendChild(el);
-                }
-            } else {
-                host.appendChild(el);
-            }
-
-            el.style.position = 'absolute';
-            el.style.width = '';
-
-            const maxX = Math.max(0, host.clientWidth - el.offsetWidth);
-            const clampedLeft = Math.max(0, Math.min(relativeLeft, maxX));
-            const clampedTop = Math.max(-20, relativeTop);
-            el.style.left = clampedLeft + 'px';
-            el.style.top = clampedTop + 'px';
-
-            delete el._dragContext;
-        };
-
-        const onMouseDown = (e) => {
-            if (e.button !== 0) return;
-
-            isDown = true;
-
-            this.stopFall(el);
-            promoteToGlobalLayer(e);
-
-            el.style.zIndex = 10000;
-            el.classList.add('dragging');
-            SoundManager.click();
-        };
-
-        const onMouseUp = (e) => {
-            if (!isDown) return;
-            isDown = false;
-            el.style.zIndex = 100;
-            el.classList.remove('dragging');
-
-            const dropped = this.checkDrop(el, e);
-
-            if (!dropped) {
-                restoreToStormArea();
-                this.resumeFall(el, container);
-            } else {
-                delete el._dragContext;
-            }
-        };
-
-        const onMouseMove = (e) => {
-            if (isDown) {
+            zone.addEventListener('dragover', e => {
                 e.preventDefault();
-                if (!el._dragContext) return;
-                const maxX = window.innerWidth - el.offsetWidth;
-                const maxY = window.innerHeight - el.offsetHeight;
-                const newX = e.clientX - el._dragContext.offsetX;
-                const newY = e.clientY - el._dragContext.offsetY;
+                if (this._dragOver !== zone) {
+                    if (this._dragOver) this._dragOver.classList.remove('drag-over');
+                    this._dragOver = zone;
+                    zone.classList.add('drag-over');
+                }
+            });
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('drag-over');
+                if (this._dragOver === zone) this._dragOver = null;
+            });
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                this._dragOver = null;
+                this._tryAnswer(prof.id, zone);
+            });
 
-                el.style.left = Math.max(0, Math.min(newX, maxX)) + 'px';
-                el.style.top = Math.max(0, Math.min(newY, maxY)) + 'px';
+            zone.addEventListener('click', () => {
+                if (this._toolSelected) this._tryAnswer(prof.id, zone);
+            });
+            zone.addEventListener('mouseenter', () => {
+                if (this._toolSelected) zone.classList.add('click-hover');
+            });
+            zone.addEventListener('mouseleave', () => {
+                zone.classList.remove('click-hover');
+            });
 
-                this.highlightZones(e);
-            }
-        };
-
-        el.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('mouseup', onMouseUp);
-        document.addEventListener('mousemove', onMouseMove);
-    },
-
-    highlightZones(e) {
-        const zones = document.querySelectorAll('.category-zone');
-        zones.forEach(zone => {
-            const rect = zone.getBoundingClientRect();
-            if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                zone.classList.add('highlight');
-            } else {
-                zone.classList.remove('highlight');
-            }
+            field.appendChild(zone);
         });
+
+        const hint = document.querySelector('.event-hint');
+        if (hint) {
+            hint.innerHTML = `Drag&amp;Drop &nbsp;|&nbsp; Клик по инструменту → клик по профессии &nbsp;|&nbsp; Клавиши 1–${this.roundProfessions.length}`;
+        }
     },
 
-    checkDrop(el, e) {
-        const zones = document.querySelectorAll('.category-zone');
-        let dropped = false;
+    _nextRound() {
+        clearInterval(this._roundTimerId);
+        this._toolSelected = false;
 
-        zones.forEach(zone => {
-            const rect = zone.getBoundingClientRect();
+        if (this.round >= this.totalRounds) {
+            this.finish(true);
+            return;
+        }
 
-            if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        this.currentTool = this.shuffledTools[this.round];
+        this.round++;
+        this._el('round-display').textContent = `Раунд ${this.round} / ${this.totalRounds}`;
+        this._updateScore();
+        this._renderTool();
+        this._startRoundTimer();
+    },
 
-                zone.classList.remove('highlight');
+    _renderTool() {
+        const area = this._el('tool-area');
+        area.innerHTML = '';
+        const tool = this.currentTool;
+        const isMulti = tool.professions.length > 1;
 
-                const wordCategory = el.dataset.category;
-                const zoneCategory = zone.dataset.category;
+        const card = document.createElement('div');
+        card.className = 'tool-card';
+        card.draggable = true;
+        card.id = 'current-tool';
+        card.innerHTML = `
+            <div class="tool-emoji">${tool.emoji}</div>
+            <div class="tool-name">${tool.name}</div>
+            ${isMulti ? '<div class="tool-multi">Подходит нескольким профессиям</div>' : ''}
+            <div class="tool-hint">Перетащите или кликните</div>
+        `;
 
-                if (wordCategory === zoneCategory) {
-                    // ПРАВИЛЬНО!
-                    this.catchWord(el, zone);
-                    dropped = true;
-                } else {
-                    // НЕПРАВИЛЬНО!
-                    this.wrongCategory(zone);
+        card.addEventListener('dragstart', e => {
+            const ghost = document.createElement('div');
+            ghost.style.cssText = `
+                position: fixed; top: -200px; left: 0;
+                width: 64px; height: 64px;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 2.2rem; background: var(--card-bg);
+                border: 2px solid var(--primary); border-radius: 12px;
+            `;
+            ghost.textContent = tool.emoji;
+            document.body.appendChild(ghost);
+            e.dataTransfer.setDragImage(ghost, 32, 32);
+            setTimeout(() => ghost.remove(), 0);
+
+            e.dataTransfer.effectAllowed = 'move';
+            card.classList.add('dragging');
+            this._toolSelected = false;
+            card.classList.remove('selected');
+        });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+
+        card.addEventListener('click', () => {
+            this._toolSelected = !this._toolSelected;
+            card.classList.toggle('selected', this._toolSelected);
+        });
+
+        area.appendChild(card);
+    },
+
+    _startRoundTimer() {
+        const total = ROUND_TIMES_L2[this.round - 1] || 8;
+        this._roundTimeTotal = total;
+        this._roundTimeLeft  = total;
+        this._updateRoundBar(1);
+        this._el('round-timer-display').textContent = total + 'с';
+
+        this._roundTimerId = setInterval(() => {
+            this._roundTimeLeft--;
+            const ratio = this._roundTimeLeft / this._roundTimeTotal;
+            this._updateRoundBar(ratio);
+            this._el('round-timer-display').textContent = this._roundTimeLeft + 'с';
+
+            if (this._roundTimeLeft <= 0) {
+                clearInterval(this._roundTimerId);
+                if (!this.finished) {
+                    this.score = Math.max(0, this.score - 5);
+                    this._updateScore();
+                    NotificationManager.show('Время раунда истекло! −5', 'error', 700);
+                    SoundManager.warning();
+                    setTimeout(() => this._nextRound(), 600);
                 }
             }
+        }, 1000);
+    },
+
+    _updateRoundBar(ratio) {
+        const bar = this._el('round-bar');
+        bar.style.width = Math.max(0, ratio * 100) + '%';
+        bar.classList.toggle('urgent', ratio < 0.3);
+    },
+
+    _onKey(e) {
+        if (this.finished) return;
+        const num = parseInt(e.key);
+        if (num >= 1 && num <= this.roundProfessions.length) {
+            const zones = document.querySelectorAll('.profession-zone');
+            const zone = zones[num - 1];
+            if (zone) this._tryAnswer(zone.dataset.id, zone);
+        }
+    },
+
+    _tryAnswer(professionId, zoneEl) {
+        if (this.finished || !this.currentTool) return;
+
+        document.querySelectorAll('.profession-zone').forEach(z => z.classList.remove('click-hover'));
+
+        const isCorrect = this.currentTool.professions.includes(professionId);
+
+        if (isCorrect) {
+            this.score += 15;
+            this.correctCount++;
+            zoneEl.classList.add('correct');
+            SoundManager.success();
+            this._toolSelected = false;
+            const toolCard = document.getElementById('current-tool');
+            if (toolCard) toolCard.classList.remove('selected');
+
+            if (this.correctCount % 2 === 0) {
+                NotificationManager.show('Отличная скорость! ⚡', 'info', 700);
+            }
+            this._updateScore();
+            clearInterval(this._roundTimerId);
+
+            setTimeout(() => {
+                zoneEl.classList.remove('correct');
+                this._nextRound();
+            }, 600);
+        } else {
+            this.score = Math.max(0, this.score - 5);
+            zoneEl.classList.add('wrong');
+            SoundManager.error();
+            this._toolSelected = false;
+            const toolCard = document.getElementById('current-tool');
+            if (toolCard) toolCard.classList.remove('selected');
+            this._updateScore();
+            setTimeout(() => zoneEl.classList.remove('wrong'), 450);
+        }
+    },
+
+    _generatePositions(count, fieldW, fieldH) {
+        const cols  = Math.ceil(Math.sqrt(count));
+        const rows  = Math.ceil(count / cols);
+        const cellW = fieldW / cols;
+        const cellH = fieldH / rows;
+        const indices = this._shuffle([...Array(count).keys()]);
+
+        return indices.map((idx) => {
+            const col = idx % cols;
+            const row = Math.floor(idx / cols);
+            const x = col * cellW + Math.random() * Math.max(0, cellW - ZONE_W - 4) + 2;
+            const y = row * cellH + Math.random() * Math.max(0, cellH - ZONE_H - 4) + 2;
+            return {
+                x: Math.max(2, Math.min(x, fieldW - ZONE_W - 2)),
+                y: Math.max(2, Math.min(y, fieldH - ZONE_H - 2)),
+            };
         });
-
-        zones.forEach(z => z.classList.remove('highlight'));
-
-        return dropped;
     },
 
-    catchWord(el, zone) {
-        el.classList.add('caught');
-        this.stopFall(el);
-        delete el._dragContext;
-
-        el.style.transition = 'all 0.3s ease-out';
-        el.style.transform = 'scale(1.5)';
-        el.style.opacity = '0';
-
-        setTimeout(() => el.remove(), 300);
-
-        zone.classList.add('correct');
-        setTimeout(() => zone.classList.remove('correct'), 500);
-
-        const cat = this.categories.find(c => c.id === zone.dataset.category);
-        if (cat) {
-            cat.count++;
-            const counter = zone.querySelector('.cat-count');
-            if (counter) counter.innerText = cat.count;
-        }
-
-        this.caught++;
-        document.getElementById('score-count').innerText = this.caught;
-
-        SoundManager.success();
-
-        this.scheduleCategoryShuffle();
-
-        if (!this.isEndless && this.caught >= this.targetScore) {
-            setTimeout(() => this.finish(true), 500);
-        }
+    _updateScore() {
+        this._el('score-display').textContent = this.score;
     },
 
-    wrongCategory(zone) {
-        zone.classList.add('wrong');
-        setTimeout(() => zone.classList.remove('wrong'), 500);
+    _el(id) { return document.getElementById(id); },
 
-        SoundManager.error();
-        UserManager.removePenalty(5);
-    },
-
-    wordMissed() {
-        this.missed++;
-
-        document.getElementById('missed-count').innerText = this.missed;
-
-        SoundManager.error();
-        UserManager.removePenalty(10);
-
-        const area = document.getElementById('storm-area');
-        area.style.animation = 'shake 0.5s';
-        setTimeout(() => {
-            area.style.animation = '';
-        }, 500);
-
-        if (this.missed >= this.maxMissed) {
-            if (this.isEndless) {
-                this.endlessReason = 'Слишком много пропусков';
-            }
-            setTimeout(() => this.finish(false), 600);
-        }
-    },
-
-    finish(success, timeout = false) {
-        clearInterval(this.spawnTimer);
+    finish(success) {
+        if (this.finished) return;
+        this.finished = true;
+        clearInterval(this._roundTimerId);
         TimerManager.stop();
-
-        const elapsedTime = Math.floor((Date.now() - this.startTime) / 1000);
-        const timeLeft = this.levelTime ? Math.max(0, this.levelTime - elapsedTime) : 0;
-        const skipWordPoints = this.skipScore;
-        const basePoints = this.basePoints;
-        const timeBonus = this.levelTime ? Math.max(0, timeLeft * 2) : 0;
-        const accuracyBonus = this.isEndless
-            ? Math.max(0, (this.caught * 12) - (this.missed * 25))
-            : Math.max(0, (this.targetScore * 15) - (this.missed * 20));
-
-        let overlayMessage;
-        if (success) {
-            overlayMessage = 'Подведение итогов...';
-        } else if (timeout) {
-            overlayMessage = 'Время вышло. Подождите...';
-        } else {
-            overlayMessage = 'Попытка завершена. Подождите...';
-        }
-
-        if (!success && this.isEndless) {
-            success = true;
-        }
-
-        ScreenBlocker.show(overlayMessage);
-        this.clearAreas();
+        if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
 
         if (success) {
-            const result = UserManager.addScore(2, basePoints, timeBonus + accuracyBonus + skipWordPoints);
-            if (this.levelTime) {
-                UserManager.updateBestTime(2, elapsedTime);
-            }
-
-            let message;
-            if (this.isEndless && this.endlessReason) {
-                message = `Бесконечный режим завершён!\n\nПричина: ${this.endlessReason}\n\nОчки за попытку: ${result.runScore}\nВ зачёт пошло: +${result.points} очков`;
-            } else if (result.firstTime) {
-                message = `СУПЕР!\n\n+${basePoints} базовых очков\n+${timeBonus} бонус за время\n+${accuracyBonus} бонус за точность\n+${skipWordPoints} бонус за лишние слова\n\nИтого за попытку: ${result.runScore} очков\nВ зачёт пошло: +${result.points} очков`;
-            } else if (result.improved) {
-                message = `Лучший результат улучшен!\n\nБыло: ${result.previousBest} очков\nСтало: ${result.newBest} очков\nДополнительно за лишние слова: +${skipWordPoints} очков\nВ зачёт пошло: +${result.points} очков`;
-            } else {
-                message = `Уровень пройден повторно!\n\nНовый результат: ${result.runScore} очков\nВаш рекорд: ${result.previousBest} очков\nБонус за лишние слова: +${skipWordPoints} очков\nВ зачёт пошло: +0 очков`;
-            }
-
-            NotificationManager.show(message, 'success', 6000);
-            setTimeout(() => window.location.href = "../../index.html", 3500);
+            const timeBonus = this.totalTimeLeft * 2;
+            const result = UserManager.addScore(2, this.score, timeBonus);
+            UserManager.updateBestTime(2, 90 - this.totalTimeLeft);
+            LeaderboardManager.updatePlayer(UserManager.user);
+            SoundManager.success();
+            NotificationManager.show(`Уровень пройден! 🎉 +${result.points} очков`, 'success', 3000);
         } else {
-            const reason = timeout
-                ? "Время вышло!"
-                : `Слишком много пропущено (${this.missed}/${this.maxMissed})`;
-            NotificationManager.show(`Уровень не пройден!\n\n${reason}\n\nПопробуйте снова!`, 'error', 5000);
-            setTimeout(() => window.location.href = "../../index.html", 2500);
+            SoundManager.error();
+            NotificationManager.show('Время вышло! ⏰', 'error', 2500);
         }
-    }
+        setTimeout(() => { window.location.href = '../../index.html'; }, 2500);
+    },
+
+    restart() {
+        clearInterval(this._roundTimerId);
+        TimerManager.stop();
+        if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
+        this.finished = false;
+        this.init();
+    },
+
+    quit() {
+        clearInterval(this._roundTimerId);
+        TimerManager.stop();
+        if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
+        window.location.href = '../../index.html';
+    },
+
+    _shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    },
 };
 
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.1); }
-    }
-`;
-document.head.appendChild(style);
-
-window.addEventListener("load", () => Level2.init());
+document.addEventListener('DOMContentLoaded', () => {
+    const theme = localStorage.getItem('gameTheme') || 'light';
+    document.body.className = `theme-${theme}`;
+    if (!UserManager.user) { window.location.href = '../../index.html'; return; }
+    Level2.init();
+});
